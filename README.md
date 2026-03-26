@@ -367,6 +367,15 @@ figma-create-design-system-rules ← generate CLAUDE.md/AGENTS.md rules
 
 ---
 
-## Version
+## Source & Credits
 
-Skills version: **2.0.2** (from `claude-plugins-official/figma`)
+These skills are sourced from the **official Figma Claude plugin** maintained by Figma and Anthropic. They are bundled with Claude Code and cached locally at:
+
+```
+~/.claude/plugins/cache/claude-plugins-official/figma/2.0.2/skills/
+```
+
+This repo is a readable, browsable snapshot of those skills at **version 2.0.2**. All skill content is the work of Figma and Anthropic — this repo exists purely for reference and discoverability.
+
+- Official Figma MCP docs: https://www.figma.com/developers/mcp
+- Claude Code: https://claude.ai/code
