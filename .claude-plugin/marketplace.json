@@ -1,0 +1,26 @@
+{
+  "name": "figma-mcp-skills",
+  "owner": {
+    "name": "Mark Jenkins",
+    "url": "https://github.com/markj81"
+  },
+  "metadata": {
+    "description": "Custom skills for building in Figma with the official Figma MCP server",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "figma-build-from-url",
+      "source": "./figma-build-from-url",
+      "description": "Build any web page in Figma from a URL, replicating content exactly using real design system component instances",
+      "version": "1.0.0",
+      "author": {
+        "name": "Mark Jenkins",
+        "url": "https://github.com/markj81"
+      },
+      "homepage": "https://github.com/markj81/figma-mcp-skills",
+      "license": "MIT",
+      "category": "design"
+    }
+  ]
+}
