@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "figma-build-from-url",
-      "source": ".",
+      "source": "./build-from-url",
       "description": "Build a pixel-perfect 1:1 replica of any web page in Figma using exact colours, fonts, images, and content",
       "version": "1.0.0",
       "author": {
