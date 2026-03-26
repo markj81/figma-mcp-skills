@@ -11,8 +11,8 @@
   "plugins": [
     {
       "name": "figma-build-from-url",
-      "source": "./figma-build-from-url",
-      "description": "Build any web page in Figma from a URL, replicating content exactly using real design system component instances",
+      "source": ".",
+      "description": "Build a pixel-perfect 1:1 replica of any web page in Figma using exact colours, fonts, images, and content",
       "version": "1.0.0",
       "author": {
         "name": "Mark Jenkins",
