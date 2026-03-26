@@ -1,93 +1,130 @@
 ---
 name: figma-build-from-url
-description: Build any web page in Figma from a URL, replicating content exactly and using real design system components. Use this skill when the user provides a URL and asks to "build this in Figma", "create a Figma design from this page", "replicate this site in Figma", "turn this URL into a Figma design", or "build [URL] in Figma". Always use this skill when a URL is provided alongside any Figma intent.
+description: Build a pixel-perfect 1:1 replica of any web page in Figma, using the exact colours, fonts, images, and content from the live URL. Use this skill when the user provides a URL and asks to "build this in Figma", "create a Figma design from this page", "replicate this site in Figma", "turn this URL into a Figma design", "clone this page into Figma", or "build [URL] in Figma". Always use this skill when a URL is provided alongside any Figma intent. Do NOT use design system components — replicate the page as-is.
 ---
 
-# Build a Web Page in Figma from a URL
+# Build a 1:1 Figma Replica from a URL
 
-This skill takes a live URL, fetches the page content, and builds a faithful Figma replica using real design system component instances — not primitive frames styled to look like components.
+This skill fetches a live URL and builds a pixel-faithful Figma replica using the page's exact colours, fonts, spacing, images, and text content. No design system components are used — the goal is a faithful copy of the source, not an abstraction of it.
 
-**MANDATORY**: Load [figma-use](../figma-use/SKILL.md) and [figma-generate-design](../figma-generate-design/SKILL.md) before any `use_figma` call. Those skills contain the Plugin API rules and screen-building workflow that this skill depends on.
+**MANDATORY**: Load [figma-use](../figma-use/SKILL.md) before any `use_figma` call. That skill contains the Plugin API rules (return pattern, color range 0–1, font loading, page context reset, FILL after appendChild) that apply to every script you write.
 
 ## Inputs
 
 - **URL** (required): The page to replicate
-- **Figma file key** (optional): Target file to build in. If not provided, create a new file first using `create_new_file`.
-- **Design system** (optional): Which published library to use for components. If the user has a known kit (e.g. Obra shadcn-ui), use it. Otherwise discover via `search_design_system`.
+- **Figma file key** (optional): Target file. If not provided, create a new file first via `create_new_file`.
 
 ## Required Workflow
 
 Follow these steps in order. Do not skip steps.
 
+---
+
 ### Step 1: Fetch and Analyse the Page
 
-Use `WebFetch` to retrieve the URL. Extract:
+Use `WebFetch` to retrieve the URL. Extract the following — be thorough and exact:
 
-- **Page title and meta description**
-- **Sections** in document order (nav, hero, features, pricing, testimonials, footer, etc.)
-- **Exact copy** for every visible text element — headings, body, labels, CTAs, captions
-- **Component inventory**: for each section, list which UI components are present (buttons, badges, cards, avatars, inputs, separators, accordions, etc.) and their variants (primary/outline/ghost, default/large, etc.)
-- **Layout signals**: column counts, alignment (center/left), approximate spacing rhythm
+#### 1a. Style tokens
 
-Document this as a structured section map before touching Figma. Example:
+Pull exact values from the page's CSS. Look for:
+
+- **Colours**: hex values used for backgrounds, text, borders, buttons, links, accents. Note which element type each applies to.
+- **Fonts**: every font family and weight used, with the Google Fonts / Typekit name where possible (e.g. `"Inter"`, `"Geist"`, `"Playfair Display"`). Note which weight styles are needed (Regular, Medium, SemiBold, Bold, etc.)
+- **Spacing rhythm**: the base spacing unit (4px, 8px, etc.), section padding, gap between elements
+- **Border radii**: button radius, card radius, image radius
+- **Font sizes**: heading sizes (h1, h2, h3), body, small/caption
+
+Record these as a style token table before touching Figma:
+
+```
+Style Tokens
+────────────
+Colours
+  Background:    #0A0A0A
+  Surface:       #141414
+  Text primary:  #FFFFFF
+  Text muted:    #A1A1AA
+  Accent:        #6366F1
+  Border:        #27272A
+
+Fonts
+  Heading: "Geist" Bold (700) — sizes: 64px, 48px, 32px
+  Body:    "Geist" Regular (400) — sizes: 16px, 14px
+  UI:      "Geist" Medium (500) — sizes: 14px
+
+Spacing
+  Section padding: 96px top/bottom, 80px left/right
+  Component gap: 24px
+  Element gap: 12px
+
+Radii
+  Button: 6px
+  Card: 12px
+```
+
+#### 1b. Section map
+
+Map every section of the page in document order with its full copy:
 
 ```
 Section Map
 ───────────
 [Nav]
-  Logo: "Acme"
-  Links: Product, Pricing, Docs, Blog
-  CTA: Button (primary, default) "Get started"
+  Background: #0A0A0A, border-bottom: 1px solid #27272A
+  Left: Logo "Acme" (Geist Bold 18px, white)
+  Centre: links — Product, Pricing, Docs, Blog (Geist Regular 14px, #A1A1AA)
+  Right: "Sign in" (text link, white), "Get started" (button, accent bg #6366F1, white text, 6px radius, 14px 20px padding)
 
 [Hero]
-  Eyebrow: Badge (secondary) "New · v2.0 released"
-  Heading: "Ship faster with Acme"
-  Subheading: "The platform for teams who move fast."
-  CTAs: Button (primary, large) "Start free", Button (outline, large) "View docs"
+  Background: #0A0A0A
+  Centred layout, padding: 96px 80px
+  Badge: "New · v2.0 released" (#27272A bg, #A1A1AA text, 6px radius)
+  H1: "Ship faster with Acme" (Geist Bold 64px, white)
+  Subheading: "The platform for teams who move fast." (Geist Regular 20px, #A1A1AA)
+  CTAs: "Start free" (accent button), "View docs" (outline button, #27272A border)
+  Gap between badge/h1/sub/ctas: 24px
 
-[Features]  3-column grid
-  Card 1: icon, "Fast", "Deploy in seconds..."
-  Card 2: icon, "Reliable", "99.99% uptime..."
-  Card 3: icon, "Scalable", "Grow without limits..."
+[Features]  3-column grid, gap 24px
+  Card bg: #141414, border: 1px #27272A, radius: 12px, padding: 32px
+  Card 1: icon (purple), "Fast" (Geist SemiBold 20px white), "Deploy in seconds..." (Regular 14px muted)
+  ...
 ```
 
-### Step 2: Discover Design System Components
+Do not paraphrase or truncate copy. If text is cut off in the HTML, mark it `[...]`.
 
-Search the target Figma file's linked libraries for real components matching the inventory from Step 1.
+---
 
-**Always inspect existing screens first** — if the file already has pages with component instances, walk them to get an authoritative component key map.
+### Step 2: Prepare the Figma File
 
-Search broadly using `search_design_system` with multiple terms:
-- "button", "badge", "card", "avatar", "separator", "input", "nav", "accordion", "tab", "toggle", "checkbox"
-
-For each matched component:
-- Record its key, name, and type (COMPONENT vs COMPONENT_SET)
-- Note which TEXT properties it exposes (for `setProperties()` overrides)
-- Note which variant properties it has (e.g. `variant`, `size`, `state`)
-
-**Never build fake versions of components that exist in the library.** If a component exists, import and instance it. Only build manually when no matching component exists.
-
-### Step 3: Prepare the Figma File
-
-If no target file was provided, create one:
+If no file was provided:
 - Call `whoami` to get the plan key
-- Call `create_new_file` with an appropriate name (e.g. the page title or domain)
+- Call `create_new_file` with the site name (e.g. `"acme.com"`)
 
-Then create a new page for the URL being replicated:
+Then create a new page:
 ```js
 const page = figma.createPage();
-page.name = "url.com/path";  // use the URL path as the page name
+page.name = "acme.com/pricing";  // use actual path
 await figma.setCurrentPageAsync(page);
+return { pageId: page.id };
 ```
 
-Load required fonts before any text operations:
+---
+
+### Step 3: Load Fonts
+
+Load every font family and style extracted in Step 1 before any text operations. If a font is not available in Figma (e.g. a custom or paid typeface), substitute with the closest available match and note it.
+
 ```js
-await figma.loadFontAsync({ family: "Inter", style: "Regular" });
-await figma.loadFontAsync({ family: "Inter", style: "Medium" });
-await figma.loadFontAsync({ family: "Inter", style: "SemiBold" });
-await figma.loadFontAsync({ family: "Inter", style: "Bold" });
-// Load whatever font family the design system uses
+// Example — adapt to the actual fonts found on the page
+await figma.loadFontAsync({ family: "Geist", style: "Regular" });
+await figma.loadFontAsync({ family: "Geist", style: "Medium" });
+await figma.loadFontAsync({ family: "Geist", style: "SemiBold" });
+await figma.loadFontAsync({ family: "Geist", style: "Bold" });
 ```
+
+If a font fails to load, call `figma.listAvailableFontsAsync()` to find the exact available style name (e.g. `"Semi Bold"` vs `"SemiBold"`).
+
+---
 
 ### Step 4: Create the Page Wrapper
 
@@ -100,12 +137,13 @@ for (const child of figma.currentPage.children) {
 }
 
 const wrapper = figma.createFrame();
-wrapper.name = "Page — url.com/path";
+wrapper.name = "acme.com — /pricing";
 wrapper.layoutMode = "VERTICAL";
 wrapper.primaryAxisAlignItems = "CENTER";
 wrapper.counterAxisAlignItems = "CENTER";
 wrapper.itemSpacing = 0;
-wrapper.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+wrapper.clipsContent = false;
+wrapper.fills = [{ type: "SOLID", color: { r: 0.04, g: 0.04, b: 0.04 } }]; // exact page bg colour
 wrapper.resize(1440, 100);
 wrapper.layoutSizingHorizontal = "FIXED";
 wrapper.primaryAxisSizingMode = "AUTO";
@@ -115,128 +153,213 @@ wrapper.y = 0;
 return { success: true, wrapperId: wrapper.id };
 ```
 
+---
+
 ### Step 5: Build Each Section
 
-One section per `use_figma` call. At the start of each script, fetch the wrapper by ID and append directly to it.
+One section per `use_figma` call. At the start of each script, fetch the wrapper by ID and append directly to it. Never build sections as top-level page children and reparent later — `appendChild` across calls silently fails.
 
-**For every section:**
+**Use exact values from the style token table** — hex colours converted to 0–1 range, exact font families and sizes, exact padding and gap values, exact border radii.
 
-1. Import the required components by key
-2. Create the section frame with correct layout
-3. Create instances of real components — never draw fake buttons/badges/cards
-4. Override text using `setProperties()` for exposed TEXT properties, or `findOne(n => n.type === "TEXT")` for unexposed ones
-5. Select the correct variant (read source defaults carefully — a button with no explicit `variant` prop may default to `"primary"`)
-6. Append the section to the wrapper
-7. Set `layoutSizingHorizontal = "FILL"` on the section **after** appending
+#### Colour conversion
 
-**Text override pattern:**
+Hex → Figma 0–1 range:
 ```js
-// Via component property (preferred)
-instance.setProperties({ "Label#1530:99": "Get started" });
+// Helper to use inline
+function hex(h) {
+  const n = parseInt(h.replace('#',''), 16);
+  return { r: ((n>>16)&255)/255, g: ((n>>8)&255)/255, b: (n&255)/255 };
+}
 
-// Via direct TEXT node (fallback)
-const textNode = instance.findOne(n => n.type === "TEXT");
-if (textNode) textNode.characters = "Get started";
+// Usage
+frame.fills = [{ type: "SOLID", color: hex("#6366F1") }];
+text.fills = [{ type: "SOLID", color: hex("#A1A1AA") }];
 ```
 
-**Content accuracy rule:** The copy in Figma must match the live page exactly. Do not paraphrase, truncate, or invent content. If text is cut off in the fetched HTML, note it as `[...]` rather than guessing.
+#### Stroke (border) pattern
 
-**Component fidelity rule:** Every button, badge, avatar, separator, and input must be a real component instance from the design system. If no matching component exists, note it in your response rather than faking it with a primitive frame.
+```js
+frame.strokes = [{ type: "SOLID", color: hex("#27272A") }];
+frame.strokeWeight = 1;
+frame.strokeAlign = "INSIDE";
+```
+
+#### Text node pattern
+
+```js
+await figma.loadFontAsync({ family: "Geist", style: "Bold" });
+const heading = figma.createText();
+heading.fontName = { family: "Geist", style: "Bold" };
+heading.fontSize = 64;
+heading.characters = "Ship faster with Acme";  // exact copy from page
+heading.fills = [{ type: "SOLID", color: hex("#FFFFFF") }];
+// Set line height if needed
+heading.lineHeight = { unit: "PIXELS", value: 72 };
+```
+
+#### Image pattern
+
+For images extracted from the page (hero images, logos, avatars, product screenshots), use `figma.createRectangle()` as a placeholder with the correct dimensions and a note label. If the image URL is accessible, use `figma.createImageAsync(url)`:
+
+```js
+// Placeholder (always works)
+const imgPlaceholder = figma.createRectangle();
+imgPlaceholder.resize(600, 400);
+imgPlaceholder.fills = [{ type: "SOLID", color: { r: 0.15, g: 0.15, b: 0.15 } }];
+imgPlaceholder.cornerRadius = 12;
+imgPlaceholder.name = "Image: hero screenshot";
+
+// Actual image (when URL is accessible and not auth-gated)
+const image = await figma.createImageAsync("https://acme.com/hero.png");
+const imageRect = figma.createRectangle();
+imageRect.resize(600, 400);
+imageRect.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: image.hash }];
+```
+
+#### After appending a section
+```js
+wrapper.appendChild(section);
+section.layoutSizingHorizontal = "FILL"; // MUST be after appendChild
+```
+
+---
 
 ### Step 6: Validate Each Section
 
-After each section, call `get_screenshot` on that section's node ID. Check for:
-- Clipped or truncated text (line heights cutting off content)
-- Overlapping elements
-- Placeholder text not overridden ("Button", "Label", "Title")
-- Wrong variant selected (Neutral instead of Primary, etc.)
-- Missing sections (sections in the source not yet built)
+After each section, call `get_screenshot` on that section's node ID (not just the full page). Check for:
+
+- **Clipped text**: line heights or frame sizing cutting off descenders or whole lines
+- **Wrong colours**: mismatched hex values — compare to the style token table
+- **Wrong font**: wrong weight, wrong family, wrong size
+- **Overlapping elements**: incorrect sizing or missing auto-layout
+- **Missing content**: copy from the source page not yet in Figma
+- **Images**: placeholders where the real image could be loaded
 
 Fix issues with targeted scripts before moving to the next section.
 
+---
+
 ### Step 7: Final Screenshot
 
-After all sections are built, call `get_screenshot` on the wrapper node. Compare against the source URL visually. Note any remaining gaps (components that didn't exist in the library, content that couldn't be extracted from the page).
+After all sections, call `get_screenshot` on the full wrapper node. Compare against the source URL. Report:
+
+1. Which sections were built
+2. Any fonts that weren't available in Figma and what was substituted
+3. Any images that couldn't be loaded (auth-gated, CORS-blocked, etc.) and remain as placeholders
+4. Any content that couldn't be extracted from the page (dynamic/JS-rendered, behind auth)
+5. The Figma file URL if a new file was created
+
+---
 
 ## Common Section Patterns
 
-### Navigation
+### Navigation bar
 ```js
-const navSection = figma.createFrame();
-navSection.layoutMode = "HORIZONTAL";
-navSection.primaryAxisAlignItems = "CENTER";
-navSection.counterAxisAlignItems = "CENTER";
-navSection.primaryAxisSizingMode = "FIXED";
-navSection.resize(1440, 10);
-navSection.counterAxisSizingMode = "AUTO";
-navSection.paddingLeft = 80;
-navSection.paddingRight = 80;
-navSection.paddingTop = 20;
-navSection.paddingBottom = 20;
-navSection.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+const nav = figma.createFrame();
+nav.name = "Nav";
+nav.layoutMode = "HORIZONTAL";
+nav.primaryAxisAlignItems = "CENTER";
+nav.counterAxisAlignItems = "CENTER";
+nav.primaryAxisSizingMode = "FIXED";
+nav.resize(1440, 10);
+nav.counterAxisSizingMode = "AUTO";
+nav.paddingLeft = 80;
+nav.paddingRight = 80;
+nav.paddingTop = 20;
+nav.paddingBottom = 20;
+nav.fills = [{ type: "SOLID", color: hex("#0A0A0A") }];
+nav.strokes = [{ type: "SOLID", color: hex("#27272A") }];
+nav.strokeWeight = 1;
+nav.strokeAlign = "INSIDE";
 ```
 
-### Hero (centered, full-width)
+### Hero section (centred, vertical)
 ```js
-const heroSection = figma.createFrame();
-heroSection.layoutMode = "VERTICAL";
-heroSection.primaryAxisAlignItems = "CENTER";
-heroSection.counterAxisAlignItems = "CENTER";
-heroSection.primaryAxisSizingMode = "AUTO";
-heroSection.counterAxisSizingMode = "FIXED";
-heroSection.resize(1440, 10);
-heroSection.paddingTop = 96;
-heroSection.paddingBottom = 96;
-heroSection.paddingLeft = 80;
-heroSection.paddingRight = 80;
-heroSection.itemSpacing = 24;
+const hero = figma.createFrame();
+hero.name = "Hero";
+hero.layoutMode = "VERTICAL";
+hero.primaryAxisAlignItems = "CENTER";
+hero.counterAxisAlignItems = "CENTER";
+hero.primaryAxisSizingMode = "AUTO";
+hero.counterAxisSizingMode = "FIXED";
+hero.resize(1440, 10);
+hero.paddingTop = 96;
+hero.paddingBottom = 96;
+hero.paddingLeft = 80;
+hero.paddingRight = 80;
+hero.itemSpacing = 24;
+hero.fills = [{ type: "SOLID", color: hex("#0A0A0A") }];
 ```
 
-### Card Grid (3-column wrap)
+### Button (built from scratch — no component import)
 ```js
-const gridSection = figma.createFrame();
-gridSection.layoutMode = "HORIZONTAL";
-gridSection.layoutWrap = "WRAP";
-gridSection.primaryAxisSizingMode = "FIXED";
-gridSection.resize(1200, 10);
-gridSection.counterAxisSizingMode = "AUTO";
-gridSection.itemSpacing = 24;
-gridSection.counterAxisSpacing = 24;
+const btn = figma.createFrame();
+btn.name = "Button / Primary";
+btn.layoutMode = "HORIZONTAL";
+btn.primaryAxisAlignItems = "CENTER";
+btn.counterAxisAlignItems = "CENTER";
+btn.primaryAxisSizingMode = "AUTO";
+btn.counterAxisSizingMode = "AUTO";
+btn.paddingTop = 10;
+btn.paddingBottom = 10;
+btn.paddingLeft = 20;
+btn.paddingRight = 20;
+btn.cornerRadius = 6;
+btn.fills = [{ type: "SOLID", color: hex("#6366F1") }];
+
+await figma.loadFontAsync({ family: "Geist", style: "Medium" });
+const btnLabel = figma.createText();
+btnLabel.fontName = { family: "Geist", style: "Medium" };
+btnLabel.fontSize = 14;
+btnLabel.characters = "Get started";
+btnLabel.fills = [{ type: "SOLID", color: hex("#FFFFFF") }];
+btn.appendChild(btnLabel);
 ```
 
-### Footer
+### Card
 ```js
-const footerSection = figma.createFrame();
-footerSection.layoutMode = "VERTICAL";
-footerSection.primaryAxisAlignItems = "CENTER";
-footerSection.counterAxisAlignItems = "CENTER";
-footerSection.primaryAxisSizingMode = "AUTO";
-footerSection.counterAxisSizingMode = "FIXED";
-footerSection.resize(1440, 10);
-footerSection.paddingTop = 48;
-footerSection.paddingBottom = 48;
-footerSection.paddingLeft = 80;
-footerSection.paddingRight = 80;
-footerSection.itemSpacing = 24;
+const card = figma.createFrame();
+card.name = "Card";
+card.layoutMode = "VERTICAL";
+card.primaryAxisSizingMode = "AUTO";
+card.counterAxisSizingMode = "FIXED";
+card.resize(380, 10);
+card.paddingTop = 32;
+card.paddingBottom = 32;
+card.paddingLeft = 32;
+card.paddingRight = 32;
+card.itemSpacing = 16;
+card.cornerRadius = 12;
+card.fills = [{ type: "SOLID", color: hex("#141414") }];
+card.strokes = [{ type: "SOLID", color: hex("#27272A") }];
+card.strokeWeight = 1;
+card.strokeAlign = "INSIDE";
 ```
+
+### 3-column grid (wrapping)
+```js
+const grid = figma.createFrame();
+grid.name = "Grid";
+grid.layoutMode = "HORIZONTAL";
+grid.layoutWrap = "WRAP";
+grid.primaryAxisSizingMode = "FIXED";
+grid.resize(1200, 10);
+grid.counterAxisSizingMode = "AUTO";
+grid.itemSpacing = 24;
+grid.counterAxisSpacing = 24;
+grid.fills = [];
+```
+
+---
 
 ## Error Recovery
 
-If a `use_figma` call fails, **stop immediately**. Failed scripts are atomic — no partial changes are written. Read the error, fix the script, retry. See [figma-use](../figma-use/SKILL.md#6-error-recovery--self-correction) for the full recovery process.
-
-Common errors in this workflow:
+If a `use_figma` call fails, **stop immediately**. Failed scripts are atomic — nothing is written on error. Read the error, fix the script, retry.
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| Font not found | Wrong style name (e.g. "Semi Bold" vs "SemiBold") | Call `figma.listAvailableFontsAsync()` to discover exact names |
-| Component not found | Key is wrong or library not enabled | Verify library is enabled in the target file; re-run `search_design_system` |
-| `FILL` before parent | Set `layoutSizingHorizontal = "FILL"` before `appendChild` | Move sizing after `appendChild` |
-| Wrapper node null | Wrong page context | Add `await figma.setCurrentPageAsync(page)` at start of each script |
-
-## What to Report When Done
-
-After completing the build, tell the user:
-1. Which sections were built and what components were used
-2. Which components were real instances vs manually built (be honest)
-3. Any content that couldn't be extracted (behind auth, dynamically loaded, etc.)
-4. The Figma file URL if a new file was created
+| Font not found | Wrong style name | Call `figma.listAvailableFontsAsync()` to find exact name |
+| `FILL` before parent | `layoutSizingHorizontal = "FILL"` set before `appendChild` | Move after `appendChild` |
+| Wrapper node null | Wrong page context | Add `await figma.setCurrentPageAsync(page)` at top of script |
+| Image load fails | Auth-gated or CORS-blocked URL | Use placeholder rectangle instead |
+| Text truncated | Frame too narrow / fixed height | Set `primaryAxisSizingMode = "AUTO"` and remove fixed height |
